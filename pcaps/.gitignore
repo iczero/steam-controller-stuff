@@ -1,0 +1,3 @@
+# avoid littering git history with random pcaps for now
+*
+!.gitignore
