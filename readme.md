@@ -29,5 +29,6 @@ Haptics seem to use several report ids in the range `0x81 - 0x89`.
 
 - wireshark PR, perhaps: <https://gitlab.com/wireshark/wireshark/-/merge_requests/25464>
 - write wireshark dissector
+  - note: currently dissector depends on `usbhid.product` field added in PR mentioned above
 - figure out config set_report format
 - figure out haptics output format

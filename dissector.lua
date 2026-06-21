@@ -88,6 +88,27 @@ local f_interrupt_report_unknown_body = ProtoField.bytes('hid_sctrl.unknown_repo
 local f_controller_state = ProtoField.bytes('hid_sctrl.state', 'Controller state', base.NONE)
 local f_state_seqno = ProtoField.uint8('hid_ctrl.state.seq', 'Sequence number', base.DEC)
 local f_buttons_bitfield = ProtoField.uint32('hid_sctrl.state.buttons', 'Button state', base.HEX)
+local f_state_left_trigger = ProtoField.uint16('hid_sctrl.state.left_trigger', 'Left trigger', base.DEC)
+local f_state_right_trigger = ProtoField.uint16('hid_sctrl.state.right_trigger', 'Right trigger', base.DEC)
+local f_state_left_stick_x = ProtoField.int16('hid_sctrl.state.left_stick_x', 'Left joystick X', base.DEC)
+local f_state_left_stick_y = ProtoField.int16('hid_sctrl.state.left_stick_y', 'Left joystick Y', base.DEC)
+local f_state_right_stick_x = ProtoField.int16('hid_sctrl.state.right_stick_x', 'Right joystick X', base.DEC)
+local f_state_right_stick_y = ProtoField.int16('hid_sctrl.state.right_stick_y', 'Right joystick Y', base.DEC)
+local f_state_trackpad_ts = ProtoField.uint16('hid_sctrl.state.trackpad_ts', 'Trackpad timestamp', base.DEC)
+local f_state_left_pad_x = ProtoField.int16('hid_sctrl.state.left_pad_x', 'Left touchpad X', base.DEC)
+local f_state_left_pad_y = ProtoField.int16('hid_sctrl.state.left_pad_y', 'Left touchpad Y', base.DEC)
+local f_state_left_pad_pressure = ProtoField.uint16('hid_sctrl.state.left_pad_pressure', 'Left touchpad pressure', base.DEC)
+local f_state_right_pad_x = ProtoField.int16('hid_sctrl.state.right_pad_x', 'Right touchpad X', base.DEC)
+local f_state_right_pad_y = ProtoField.int16('hid_sctrl.state.right_pad_y', 'Right touchpad Y', base.DEC)
+local f_state_right_pad_pressure = ProtoField.uint16('hid_sctrl.state.right_pad_pressure', 'Right touchpad pressure', base.DEC)
+local f_state_imu_ts_32 = ProtoField.uint32('hid_sctrl.state.imu_ts_32', 'IMU timestamp (32-bit)', base.DEC)
+local f_state_imu_ts_16 = ProtoField.uint16('hid_sctrl.state.imu_ts_16', 'IMU timestamp (16-bit)', base.DEC)
+local f_state_imu_accel_x = ProtoField.int16('hid_sctrl.state.imu_accel_x', 'IMU accelerometer (X-axis)', base.DEC)
+local f_state_imu_accel_y = ProtoField.int16('hid_sctrl.state.imu_accel_y', 'IMU accelerometer (Y-axis)', base.DEC)
+local f_state_imu_accel_z = ProtoField.int16('hid_sctrl.state.imu_accel_z', 'IMU accelerometer (Z-axis)', base.DEC)
+local f_state_imu_gyro_x = ProtoField.int16('hid_sctrl.state.imu_gyro_x', 'IMU gyroscope (X-axis)', base.DEC)
+local f_state_imu_gyro_y = ProtoField.int16('hid_sctrl.state.imu_gyro_y', 'IMU gyroscope (Y-axis)', base.DEC)
+local f_state_imu_gyro_z = ProtoField.int16('hid_sctrl.state.imu_gyro_z', 'IMU gyroscope (Z-axis)', base.DEC)
 
 local fields_table = {
   f_feature_report_id,
@@ -105,6 +126,28 @@ local fields_table = {
   f_controller_state,
   f_state_seqno,
   f_buttons_bitfield,
+
+  f_state_left_trigger,
+  f_state_right_trigger,
+  f_state_left_stick_x,
+  f_state_left_stick_y,
+  f_state_right_stick_x,
+  f_state_right_stick_y,
+  f_state_trackpad_ts,
+  f_state_left_pad_x,
+  f_state_left_pad_y,
+  f_state_left_pad_pressure,
+  f_state_right_pad_x,
+  f_state_right_pad_y,
+  f_state_right_pad_pressure,
+  f_state_imu_ts_32,
+  f_state_imu_ts_16,
+  f_state_imu_accel_x,
+  f_state_imu_accel_y,
+  f_state_imu_accel_z,
+  f_state_imu_gyro_x,
+  f_state_imu_gyro_y,
+  f_state_imu_gyro_z,
 }
 
 local buttons_bit_table = {}
@@ -248,11 +291,78 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
 
       if buttons_bitfield & button.mask > 0 then
         table.insert(pressed_buttons, button.short_name)
+        pressed_buttons[button.short_name] = true
       end
     end
     offset = offset + 4
 
-    pinfo.cols.info = string.format('State: [%s]', table.concat(pressed_buttons, ' '))
+    local _, left_trigger = state:add_packet_field(f_state_left_trigger, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, right_trigger = state:add_packet_field(f_state_right_trigger, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+
+    local _, left_stick_x = state:add_packet_field(f_state_left_stick_x, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, left_stick_y = state:add_packet_field(f_state_left_stick_y, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, right_stick_x = state:add_packet_field(f_state_right_stick_x, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, right_stick_y = state:add_packet_field(f_state_right_stick_y, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+
+    local _, left_pad_x = state:add_packet_field(f_state_left_pad_x, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, left_pad_y = state:add_packet_field(f_state_left_pad_y, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, left_pad_pressure = state:add_packet_field(f_state_left_pad_pressure, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, right_pad_x = state:add_packet_field(f_state_right_pad_x, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, right_pad_y = state:add_packet_field(f_state_right_pad_y, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, right_pad_pressure = state:add_packet_field(f_state_right_pad_pressure, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+
+    local _, imu_ts = state:add_packet_field(f_state_imu_ts_32, tvb(offset, 4), ENC_LITTLE_ENDIAN)
+    offset = offset + 4
+    local _, accel_x = state:add_packet_field(f_state_imu_accel_x, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, accel_y = state:add_packet_field(f_state_imu_accel_y, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, accel_z = state:add_packet_field(f_state_imu_accel_z, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, gyro_x = state:add_packet_field(f_state_imu_gyro_x, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, gyro_y = state:add_packet_field(f_state_imu_gyro_y, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+    local _, gyro_z = state:add_packet_field(f_state_imu_gyro_z, tvb(offset, 2), ENC_LITTLE_ENDIAN)
+    offset = offset + 2
+
+    local info_text = { 'State:', '[' }
+    for _, v in ipairs(pressed_buttons) do
+      table.insert(info_text, v)
+    end
+    table.insert(info_text, ']')
+    if left_trigger > 10 then table.insert(info_text, 'LT:' .. left_trigger) end
+    if right_trigger > 10 then table.insert(info_text, 'RT:' .. right_trigger) end
+    if math.abs(left_stick_x) > 2400 or math.abs(left_stick_y) > 2400 then
+      table.insert(info_text, string.format('LS:(%d,%d)', left_stick_x, left_stick_y))
+    end
+    if math.abs(right_stick_x) > 2400 or math.abs(right_stick_y) > 2400 then
+      table.insert(info_text, string.format('RS:(%d,%d)', right_stick_x, right_stick_y))
+    end
+    if pressed_buttons['LPT'] then
+      table.insert(info_text, string.format('LP:(%d,%d),%d', left_pad_x, left_pad_y, left_pad_pressure))
+    end
+    if pressed_buttons['RPT'] then
+      table.insert(info_text, string.format('RP:(%d,%d),%d', right_pad_x, right_pad_y, right_pad_pressure))
+    end
+    table.insert(info_text, string.format(
+      'IMU:(ts=%d, ax=%d, ay=%d, az=%d, gx=%d, gy=%d, gz=%d)',
+      imu_ts, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z
+    ))
+
+    pinfo.cols.info = table.concat(info_text, ' ')
   else
     tree:add(f_interrupt_report_unknown_body, tvb(1))
   end
