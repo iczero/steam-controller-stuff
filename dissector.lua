@@ -50,7 +50,8 @@ local ID_TRITON_WIRELESS_STATUS_X = 0x46
 -- seen it get sent
 local ID_TRITON_CONTROLLER_STATE_TIMESTAMP = 0x47
 local ID_TRITON_WIRELESS_STATUS = 0x79
--- note: 0x7B is sent only when using the puck, seems to also be wireless status
+-- note: 0x7B is sent only when using the puck, seems to also be wireless status?
+local ID_TRITON_PUCK_WIRELESS_STATUS = 0x7B
 
 -- from SDL: enum ValveTritonOutReportMessageIDs
 local ID_OUT_REPORT_HAPTIC_RUMBLE = 0x80
@@ -70,6 +71,7 @@ local interrupt_report_ids = {
   [ID_TRITON_WIRELESS_STATUS_X] = 'ID_TRITON_WIRELESS_STATUS_X',
   [ID_TRITON_CONTROLLER_STATE_TIMESTAMP] = 'ID_TRITON_CONTROLLER_STATE_TIMESTAMP',
   [ID_TRITON_WIRELESS_STATUS] = 'ID_TRITON_WIRELESS_STATUS',
+  [ID_TRITON_PUCK_WIRELESS_STATUS] = 'ID_TRITON_PUCK_WIRELESS_STATUS',
 
   [ID_OUT_REPORT_HAPTIC_RUMBLE] = 'ID_OUT_REPORT_HAPTIC_RUMBLE',
   [ID_OUT_REPORT_HAPTIC_PULSE] = 'ID_OUT_REPORT_HAPTIC_PULSE',
@@ -84,9 +86,8 @@ local setting_ids = {
 }
 
 local f_feature_report_id = ProtoField.uint8('hid_sctrl.setup.feature_report_id', 'Feature report ID', base.HEX)
-local f_feature_report_header = ProtoField.uint16('hid_sctrl.setup.feature_report_header', 'Feature report header', base.HEX)
-local f_feature_report_type = ProtoField.uint8('hid_sctrl.setup.feature_report_header.message_id', 'Feature report message ID', base.HEX, feature_report_message_ids)
-local f_feature_report_length = ProtoField.uint8('hid_sctrl.setup.feature_report_header.length', 'Feature report length', base.DEC)
+local f_feature_report_type = ProtoField.uint8('hid_sctrl.setup.feature_report_message_id', 'Feature report message ID', base.HEX, feature_report_message_ids)
+local f_feature_report_length = ProtoField.uint8('hid_sctrl.setup.feature_report_length', 'Feature report length', base.DEC)
 local f_feature_report_unknown_body = ProtoField.bytes('hid_sctrl.setup.feature_report_unknown_body', 'Unknown feature report payload')
 
 local f_setting_number = ProtoField.uint8('hid_sctrl.setting.number', 'Setting number', base.HEX, setting_ids)
@@ -95,7 +96,7 @@ local f_setting_value = ProtoField.uint16('hid_sctrl.setting.value', 'Setting va
 local f_interrupt_report_id = ProtoField.uint8('hid_sctrl.report_id', 'Report ID', base.HEX, interrupt_report_ids)
 local f_interrupt_report_unknown_body = ProtoField.bytes('hid_sctrl.unknown_report_body', 'Unknown report payload')
 
-local f_controller_state = ProtoField.bytes('hid_sctrl.state', 'Controller state', base.NONE)
+local f_controller_state = ProtoField.bytes('hid_sctrl.state', 'Controller state')
 local f_state_seqno = ProtoField.uint8('hid_ctrl.state.seq', 'Sequence number', base.DEC)
 local f_buttons_bitfield = ProtoField.uint32('hid_sctrl.state.buttons', 'Button state', base.HEX)
 local f_state_left_trigger = ProtoField.uint16('hid_sctrl.state.left_trigger', 'Left trigger', base.DEC)
@@ -120,9 +121,70 @@ local f_state_imu_gyro_x = ProtoField.int16('hid_sctrl.state.imu_gyro_x', 'IMU g
 local f_state_imu_gyro_y = ProtoField.int16('hid_sctrl.state.imu_gyro_y', 'IMU gyroscope (Y-axis)', base.DEC)
 local f_state_imu_gyro_z = ProtoField.int16('hid_sctrl.state.imu_gyro_z', 'IMU gyroscope (Z-axis)', base.DEC)
 
+local f_haptic_rumble = ProtoField.bytes('hid_sctrl.haptic_rumble', 'Haptic rumble')
+local f_haptic_rumble_type = ProtoField.uint8('hid_sctrl.haptic_rumble.type', 'Type', base.DEC)
+local f_haptic_rumble_intensity = ProtoField.uint16('hid_sctrl.haptic_rumble.intensity', 'Intensity', base.DEC)
+local f_haptic_rumble_left_speed = ProtoField.uint16('hid_sctrl.haptic_rumble.left_speed', 'Left speed', base.DEC)
+local f_haptic_rumble_left_gain = ProtoField.int8('hid_sctrl.haptic_rumble.left_gain', 'Left gain', base.DEC | base.UNIT_STRING, { 'dB' })
+local f_haptic_rumble_right_speed = ProtoField.uint16('hid_sctrl.haptic_rumble.right_speed', 'Right speed', base.DEC)
+local f_haptic_rumble_right_gain = ProtoField.int8('hid_sctrl.haptic_rumble.right_gain', 'Right gain', base.DEC | base.UNIT_STRING, { 'dB' })
+
+local f_haptic_duration = ProtoField.uint16('hid_sctrl.haptic.duration', 'Duration', base.DEC | base.UNIT_STRING, { 'dB' })
+
+local haptic_pulse_sides = {
+  -- right touchpad
+  [0] = 'RIGHT_PAD',
+  -- left touchpad
+  [1] = 'LEFT_PAD',
+  -- left internal motor
+  [3] = 'LEFT_INT',
+  -- right internal motor
+  [4] = 'RIGHT_INT',
+}
+local f_haptic_pulse = ProtoField.bytes('hid_sctrl.haptic_pulse', 'Haptic pulse')
+local f_haptic_pulse_side = ProtoField.uint8('hid_sctrl.haptic_pulse.side', 'Side', base.DEC, haptic_pulse_sides)
+local f_haptic_pulse_on_us = ProtoField.uint16('hid_sctrl.haptic_pulse.on_us', 'On duration', base.DEC | base.UNIT_STRING, { 'µs' })
+local f_haptic_pulse_off_us = ProtoField.uint16('hid_sctrl.haptic_pulse.off_us', 'Off duration', base.DEC | base.UNIT_STRING, { 'µs' })
+local f_haptic_pulse_repeat = ProtoField.uint16('hid_sctrl.haptic_pulse.repeat', 'Repeat', base.DEC)
+
+local haptic_command_sides = {
+  [0] = 'LEFT',
+  [1] = 'RIGHT',
+}
+local haptic_commands = {
+  -- TODO: better names
+  -- trackpad "click" feeling
+  [1] = 'CLICK',
+}
+local f_haptic_command = ProtoField.bytes('hid_sctrl.haptic_command', 'Haptic command')
+local f_haptic_command_side = ProtoField.uint8('hid_sctrl.haptic_command.side', 'Side', base.DEC, haptic_command_sides)
+local f_haptic_command_command = ProtoField.uint8('hid_sctrl.haptic_command.command', 'Command', base.DEC, haptic_commands)
+local f_haptic_command_gain = ProtoField.int8('hid_sctrl.haptic_command.gain', 'Gain', base.DEC | base.UNIT_STRING, { 'dB' })
+
+local haptic_lfo_tone_sides = haptic_command_sides -- guess
+local f_haptic_lfo_tone = ProtoField.bytes('hid_sctrl.haptic_lfo_tone', 'Haptic LFO tone')
+local f_haptic_lfo_tone_side = ProtoField.uint8('hid_sctrl.haptic_lfo_tone.side', 'Side', base.DEC, haptic_lfo_tone_sides)
+local f_haptic_lfo_tone_gain = ProtoField.int8('hid_sctrl.haptic_lfo_tone.gain', 'Gain', base.DEC | base.UNIT_STRING, { 'dB' })
+local f_haptic_lfo_tone_frequency = ProtoField.uint16('hid_sctrl.haptic_lfo_tone.frequency', 'Frequency', base.DEC | base.UNIT_STRING, { 'Hz' })
+local f_haptic_lfo_tone_lfo_freq = ProtoField.uint16('hid_sctrl.haptic_lfo_tone.lfo_freq', 'LFO frequency', base.DEC | base.UNIT_STRING, { 'Hz' })
+local f_haptic_lfo_tone_lfo_depth = ProtoField.uint8('hid_sctrl.haptic_lfo_tone.lfo_depth', 'LFO depth', base.DEC)
+
+local haptic_log_sweep_sides = haptic_command_sides -- guess
+local f_haptic_log_sweep = ProtoField.bytes('hid_sctrl.haptic_log_sweep', 'Haptic log sweep')
+local f_haptic_log_sweep_side = ProtoField.uint8('hid_sctrl.haptic_log_sweep.side', 'Side', base.DEC, haptic_log_sweep_sides)
+local f_haptic_log_sweep_gain = ProtoField.int8('hid_sctrl.haptic_log_sweep.gain', 'Gain', base.DEC | base.UNIT_STRING, { 'dB' })
+local f_haptic_log_sweep_left_freq = ProtoField.uint16('hid_sctrl.haptic_log_sweep.left_freq', 'Left frequency', base.DEC | base.UNIT_STRING, { 'Hz' })
+local f_haptic_log_sweep_right_freq = ProtoField.uint16('hid_sctrl.haptic_log_sweep.right_freq', 'Right frequency', base.DEC | base.UNIT_STRING, { 'Hz' })
+
+local haptic_scripts = {}
+local haptic_script_sides = haptic_command_sides -- guess
+local f_haptic_script = ProtoField.bytes('hid_sctrl.haptic_script', 'Haptic script')
+local f_haptic_script_side = ProtoField.uint8('hid_sctrl.haptic_script.side', 'Side', base.DEC, haptic_script_sides)
+local f_haptic_script_id = ProtoField.uint8('hid_sctrl.haptic_script.id', 'Script ID', base.DEC, haptic_scripts)
+local f_haptic_script_gain = ProtoField.int8('hid_sctrl.haptic_script.gain', 'Gain', base.DEC | base.UNIT_STRING, { 'dB' })
+
 local fields_table = {
   f_feature_report_id,
-  f_feature_report_header,
   f_feature_report_type,
   f_feature_report_length,
   f_feature_report_unknown_body,
@@ -158,6 +220,45 @@ local fields_table = {
   f_state_imu_gyro_x,
   f_state_imu_gyro_y,
   f_state_imu_gyro_z,
+
+  f_haptic_rumble,
+  f_haptic_rumble_type,
+  f_haptic_rumble_intensity,
+  f_haptic_rumble_left_speed,
+  f_haptic_rumble_left_gain,
+  f_haptic_rumble_right_speed,
+  f_haptic_rumble_right_gain,
+
+  f_haptic_duration,
+
+  f_haptic_pulse,
+  f_haptic_pulse_side,
+  f_haptic_pulse_on_us,
+  f_haptic_pulse_off_us,
+  f_haptic_pulse_repeat,
+
+  f_haptic_command,
+  f_haptic_command_side,
+  f_haptic_command_command,
+  f_haptic_command_gain,
+
+  f_haptic_lfo_tone,
+  f_haptic_lfo_tone_side,
+  f_haptic_lfo_tone_gain,
+  f_haptic_lfo_tone_frequency,
+  f_haptic_lfo_tone_lfo_freq,
+  f_haptic_lfo_tone_lfo_depth,
+
+  f_haptic_log_sweep,
+  f_haptic_log_sweep_side,
+  f_haptic_log_sweep_gain,
+  f_haptic_log_sweep_left_freq,
+  f_haptic_log_sweep_right_freq,
+
+  f_haptic_script,
+  f_haptic_script_side,
+  f_haptic_script_id,
+  f_haptic_script_gain,
 }
 
 local buttons_bit_table = {}
@@ -226,21 +327,36 @@ local hid_bRequest = Field.new('usbhid.setup.bRequest')
 local hid_report_type = Field.new('usbhid.setup.ReportType')
 local hid_setup_report_id = Field.new('usbhid.setup.ReportID')
 
+local function get_enum_or_hex(mapping, value)
+  if mapping[value] ~= nil then
+    return mapping[value]
+  end
+
+  return string.format('0x%X', value)
+end
+
+local function get_enum_or_dec(mapping, value)
+  if mapping[value] ~= nil then
+    return mapping[value]
+  end
+
+  return string.format('%d', value)
+end
+
 local function dissect_feature_report_payload(tvb, pinfo, root, is_set)
   if tvb:len() < 2 then return end
 
   local tree = root:add(hid_sctrl, tvb(), 'Steam Controller HID Feature Report')
   -- multiple feature report ids are defined so first byte is report id
   tree:add(f_feature_report_id, tvb(0, 1))
-  local header = tree:add(f_feature_report_header, tvb(1, 2))
-  local _, type = header:add_packet_field(f_feature_report_type, tvb(1, 1), ENC_BIG_ENDIAN)
-  local _, length = header:add_packet_field(f_feature_report_length, tvb(2, 1), ENC_BIG_ENDIAN)
+  local _, type = tree:add_packet_field(f_feature_report_type, tvb(1, 1), ENC_BIG_ENDIAN)
+  local _, length = tree:add_packet_field(f_feature_report_length, tvb(2, 1), ENC_BIG_ENDIAN)
   tree:set_len(length + 3)
 
   if is_set then
-    pinfo.cols.info = string.format('Set Feature Report (0x%X)', type)
+    pinfo.cols.info = string.format('Set Feature Report (%s)', get_enum_or_hex(feature_report_message_ids, type))
   else
-    pinfo.cols.info = string.format('Get Feature Report Response (0x%X)', type)
+    pinfo.cols.info = string.format('Get Feature Report Response (%s)', get_enum_or_hex(feature_report_message_ids, type))
   end
 
   if type == ID_SET_SETTINGS_VALUES then
@@ -251,6 +367,7 @@ local function dissect_feature_report_payload(tvb, pinfo, root, is_set)
       setting_tree:add(f_setting_value, tvb(3 + offset + 1, 2))
       offset = offset + 3
     end
+    pinfo.cols.info = 'Set controller settings'
   elseif type == ID_GET_SETTINGS_VALUES then
     local setting_tree = tree:add(tvb(3, length), 'Get settings')
     local offset = 0
@@ -260,6 +377,7 @@ local function dissect_feature_report_payload(tvb, pinfo, root, is_set)
       setting_tree:add(f_setting_value, tvb(3 + offset + 1, 2))
       offset = offset + 3
     end
+    pinfo.cols.info = 'Get controller settings'
   elseif length > 0 then
     -- unknown type
     tree:add(f_feature_report_unknown_body, tvb(3, length))
@@ -287,10 +405,11 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
   local dir_s = direction == ENDPOINT_DIRECTION_IN and 'Input' or 'Output'
   local tree = root:add(hid_sctrl, tvb:range(), 'Steam Controller HID ' .. dir_s .. ' Report')
   local _, report_id = tree:add_packet_field(f_interrupt_report_id, tvb(0, 1), ENC_BIG_ENDIAN)
-  pinfo.cols.info = string.format('%s Report (0x%X)', dir_s, report_id)
+  pinfo.cols.info = string.format('%s Report (%s)', dir_s, get_enum_or_hex(interrupt_report_ids, report_id))
+
+  local offset = 1
 
   if report_id == ID_TRITON_CONTROLLER_STATE_BLE then
-    local offset = 1
     local state = tree:add(f_controller_state, tvb(offset, 45))
     state:add(f_state_seqno, tvb(offset, 1))
     offset = offset + 1
@@ -373,6 +492,78 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
     ))
 
     pinfo.cols.info = table.concat(info_text, ' ')
+  elseif report_id == ID_OUT_REPORT_HAPTIC_RUMBLE then
+    local hapt = tree:add(f_haptic_rumble, tvb(offset, 9))
+    hapt:add_le(f_haptic_rumble_type, tvb(offset, 1))
+    offset = offset + 1
+    hapt:add_le(f_haptic_rumble_intensity, tvb(offset, 2))
+    offset = offset + 2
+    hapt:add_le(f_haptic_rumble_left_speed, tvb(offset, 2))
+    offset = offset + 2
+    hapt:add_le(f_haptic_rumble_left_gain, tvb(offset, 1))
+    offset = offset + 1
+    hapt:add_le(f_haptic_rumble_right_speed, tvb(offset, 2))
+    offset = offset + 2
+    hapt:add_le(f_haptic_rumble_right_gain, tvb(offset, 1))
+    offset = offset + 1
+    pinfo.cols.info = 'Haptic rumble'
+  elseif report_id == ID_OUT_REPORT_HAPTIC_PULSE then
+    local hapt = tree:add(f_haptic_pulse, tvb(offset, 7))
+    local _, side = hapt:add_packet_field(f_haptic_pulse_side, tvb(offset, 1), ENC_LITTLE_ENDIAN)
+    offset = offset + 1
+    hapt:add_le(f_haptic_pulse_on_us, tvb(offset, 2))
+    offset = offset + 2
+    hapt:add_le(f_haptic_pulse_off_us, tvb(offset, 2))
+    offset = offset + 2
+    hapt:add_le(f_haptic_pulse_repeat, tvb(offset, 2))
+    offset = offset + 2
+    pinfo.cols.info = 'Haptic pulse ' .. haptic_pulse_sides[side]
+  elseif report_id == ID_OUT_REPORT_HAPTIC_COMMAND then
+    local hapt = tree:add(f_haptic_command, tvb(offset, 3))
+    local _, side = hapt:add_packet_field(f_haptic_command_side, tvb(offset, 1), ENC_LITTLE_ENDIAN)
+    offset = offset + 1
+    local _, command = hapt:add_packet_field(f_haptic_command_command, tvb(offset, 1), ENC_LITTLE_ENDIAN)
+    offset = offset + 1
+    hapt:add_le(f_haptic_command_gain, tvb(offset, 1))
+    offset = offset + 1
+    pinfo.cols.info = string.format('Haptic command %s %s', get_enum_or_dec(haptic_commands, command), haptic_command_sides[side])
+  elseif report_id == ID_OUT_REPORT_HAPTIC_LFO_TONE then
+    local hapt = tree:add(f_haptic_lfo_tone, tvb(offset, 9))
+    local _, side = hapt:add_packet_field(f_haptic_lfo_tone_side, tvb(offset, 1), ENC_LITTLE_ENDIAN)
+    offset = offset + 1
+    hapt:add_le(f_haptic_lfo_tone_gain, tvb(offset, 1))
+    offset = offset + 1
+    hapt:add_le(f_haptic_lfo_tone_frequency, tvb(offset, 2))
+    offset = offset + 2
+    hapt:add_le(f_haptic_duration, tvb(offset, 2))
+    offset = offset + 2
+    hapt:add_le(f_haptic_lfo_tone_lfo_freq, tvb(offset, 2))
+    offset = offset + 2
+    hapt:add_le(f_haptic_lfo_tone_lfo_depth, tvb(offset, 1))
+    offset = offset + 1
+    pinfo.cols.info = 'Haptic LFO tone ' .. haptic_command_sides[side]
+  elseif report_id == ID_OUT_REPORT_HAPTIC_LOG_SWEEP then
+    local hapt = tree:add(f_haptic_log_sweep, tvb(offset, 8))
+    local _, side = hapt:add_packet_field(f_haptic_log_sweep_side, tvb(offset, 1), ENC_LITTLE_ENDIAN)
+    offset = offset + 1
+    hapt:add_le(f_haptic_log_sweep_gain, tvb(offset, 1))
+    offset = offset + 1
+    hapt:add_le(f_haptic_duration, tvb(offset, 2))
+    offset = offset + 2
+    hapt:add_le(f_haptic_log_sweep_left_freq, tvb(offset, 2))
+    offset = offset + 2
+    hapt:add_le(f_haptic_log_sweep_right_freq, tvb(offset, 2))
+    offset = offset + 2
+    pinfo.cols.info = 'Haptic log sweep ' .. haptic_command_sides[side]
+  elseif report_id == ID_OUT_REPORT_HAPTIC_SCRIPT then
+    local hapt = tree:add(f_haptic_script, tvb(offset, 3))
+    local _, side = hapt:add_packet_field(f_haptic_script_side, tvb(offset, 1), ENC_LITTLE_ENDIAN)
+    offset = offset + 1
+    local _, script_id = hapt:add_packet_field(f_haptic_script_id, tvb(offset, 1), ENC_LITTLE_ENDIAN)
+    offset = offset + 1
+    hapt:add_le(f_haptic_script_gain, tvb(offset, 1))
+    offset = offset + 1
+    pinfo.cols.info = string.format('Haptic script %s %s', get_enum_or_dec(haptic_scripts, script_id), haptic_script_sides[side])
   elseif report_id == ID_TRITON_LIZARD_KEYBOARD then
     -- send lizard mode to native dissector
     pinfo.cols.info = 'Lizard mode keyboard'
