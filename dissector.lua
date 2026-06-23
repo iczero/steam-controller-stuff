@@ -17,6 +17,10 @@ local ID_GET_SETTINGS_DEFAULTS = 0x8C
 local ID_SET_CONTROLLER_MODE = 0x8D
 local ID_LOAD_DEFAULT_SETTINGS = 0x8E
 local ID_TRIGGER_HAPTIC_PULSE = 0x8F
+-- referenced in firmware updater and in firmware
+local ID_REBOOT_TO_BOOTLOADER = 0x90
+-- from SDL, also referenced in firmware
+local ID_TURN_OFF_CONTROLLER = 0x9F
 
 local feature_report_message_ids = {
   [ID_SET_DIGITAL_MAPPINGS] = 'ID_SET_DIGITAL_MAPPINGS',
@@ -35,6 +39,8 @@ local feature_report_message_ids = {
   [ID_SET_CONTROLLER_MODE] = 'ID_SET_CONTROLLER_MODE',
   [ID_LOAD_DEFAULT_SETTINGS] = 'ID_LOAD_DEFAULT_SETTINGS',
   [ID_TRIGGER_HAPTIC_PULSE] = 'ID_TRIGGER_HAPTIC_PULSE',
+  [ID_REBOOT_TO_BOOTLOADER] = 'ID_REBOOT_TO_BOOTLOADER',
+  [ID_TURN_OFF_CONTROLLER] = 'ID_TURN_OFF_CONTROLLER',
 }
 
 -- from HID descriptor, lizard mode reports
@@ -136,10 +142,14 @@ local haptic_pulse_sides = {
   [0] = 'TP_RIGHT',
   -- left touchpad
   [1] = 'TP_LEFT',
+  -- both touchpads
+  [2] = 'TP_BOTH',
   -- left internal motor
   [3] = 'INT_LEFT',
   -- right internal motor
   [4] = 'INT_RIGHT',
+  -- both internal motors
+  [5] = 'INT_BOTH',
 }
 local f_haptic_pulse = ProtoField.bytes('hid_sctrl.haptic_pulse', 'Haptic pulse')
 local f_haptic_pulse_side = ProtoField.uint8('hid_sctrl.haptic_pulse.side', 'Side', base.DEC, haptic_pulse_sides)
@@ -155,8 +165,10 @@ local haptic_command_sides = {
 }
 local haptic_commands = {
   -- TODO: better names
-  -- trackpad "click" feeling
+  -- trackpad "click" feeling sent when trackpad is configured as mouse
   [1] = 'CLICK',
+  -- seems to be click but stronger
+  [2] = 'CLICK_STRONG',
 }
 local f_haptic_command = ProtoField.bytes('hid_sctrl.haptic_command', 'Haptic command')
 local f_haptic_command_side = ProtoField.uint8('hid_sctrl.haptic_command.side', 'Side', base.DEC, haptic_command_sides)

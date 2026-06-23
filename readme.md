@@ -25,6 +25,22 @@ Haptics seem to use several report ids in the range `0x81 - 0x89`.
 
 - Some simple tones (such as mode switch) are done by a sending haptic pulse command targeting a trackpad with the on/off duration and repeat count set to produce the desired frequency.
 
+## Firmware
+
+- Controller firmware image in `~/.local/share/Steam/bin/hardwareupdater`
+- Triton (controller) firmware named `IBEX_FW_*.fw`
+- Proteus (puck) firmware named `PROTEUS_FW_*.fw`
+- Need to strip 32-byte header from these images and then the rest should be a Cortex-M binary
+
+### Triton firmware
+
+- Base address seems to be `0x8000`, entrypoint `0x267ec` (as in Cortex-M vector table)
+
+### Firmware updater
+
+- Extract `hardwareupdater.x86_64` with <https://github.com/extremecoders-re/pyinstxtractor>
+- Decompile `hardwareupdater.pyc` with <https://pylingual.io> or something else
+
 ## Misc notes
 
 - SDL refers to the 2026 Steam Controller as Triton. Ibex may have been the codename for an older revision.
