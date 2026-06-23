@@ -21,6 +21,10 @@ Haptics seem to use several report ids in the range `0x81 - 0x89`.
 
 `0x7B` is sent by the controller periodically only when using the puck.
 
+## Interesting stuff
+
+- Some simple tones (such as mode switch) are done by a sending haptic pulse command targeting a trackpad with the on/off duration and repeat count set to produce the desired frequency.
+
 ## Misc notes
 
 - SDL refers to the 2026 Steam Controller as Triton. Ibex may have been the codename for an older revision.

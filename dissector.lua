@@ -133,13 +133,13 @@ local f_haptic_duration = ProtoField.uint16('hid_sctrl.haptic.duration', 'Durati
 
 local haptic_pulse_sides = {
   -- right touchpad
-  [0] = 'RIGHT_PAD',
+  [0] = 'TP_RIGHT',
   -- left touchpad
-  [1] = 'LEFT_PAD',
+  [1] = 'TP_LEFT',
   -- left internal motor
-  [3] = 'LEFT_INT',
+  [3] = 'INT_LEFT',
   -- right internal motor
-  [4] = 'RIGHT_INT',
+  [4] = 'INT_RIGHT',
 }
 local f_haptic_pulse = ProtoField.bytes('hid_sctrl.haptic_pulse', 'Haptic pulse')
 local f_haptic_pulse_side = ProtoField.uint8('hid_sctrl.haptic_pulse.side', 'Side', base.DEC, haptic_pulse_sides)
@@ -148,8 +148,10 @@ local f_haptic_pulse_off_us = ProtoField.uint16('hid_sctrl.haptic_pulse.off_us',
 local f_haptic_pulse_repeat = ProtoField.uint16('hid_sctrl.haptic_pulse.repeat', 'Repeat', base.DEC)
 
 local haptic_command_sides = {
-  [0] = 'LEFT',
-  [1] = 'RIGHT',
+  -- valve please make up your mind
+  [0] = 'TP_LEFT',
+  [1] = 'TP_RIGHT',
+  [2] = 'TP_BOTH',
 }
 local haptic_commands = {
   -- TODO: better names
@@ -161,23 +163,65 @@ local f_haptic_command_side = ProtoField.uint8('hid_sctrl.haptic_command.side', 
 local f_haptic_command_command = ProtoField.uint8('hid_sctrl.haptic_command.command', 'Command', base.DEC, haptic_commands)
 local f_haptic_command_gain = ProtoField.int8('hid_sctrl.haptic_command.gain', 'Gain', base.DEC | base.UNIT_STRING, { 'dB' })
 
-local haptic_lfo_tone_sides = haptic_command_sides -- guess
+local haptic_script_sides = {
+  [0] = 'TP_LEFT',
+  [1] = 'TP_RIGHT',
+  [2] = 'TP_BOTH',
+  [3] = 'INT_LEFT',
+  [4] = 'INT_RIGHT',
+  [5] = 'INT_BOTH',
+}
+local haptic_lfo_tone_sides = haptic_script_sides
 local f_haptic_lfo_tone = ProtoField.bytes('hid_sctrl.haptic_lfo_tone', 'Haptic LFO tone')
 local f_haptic_lfo_tone_side = ProtoField.uint8('hid_sctrl.haptic_lfo_tone.side', 'Side', base.DEC, haptic_lfo_tone_sides)
 local f_haptic_lfo_tone_gain = ProtoField.int8('hid_sctrl.haptic_lfo_tone.gain', 'Gain', base.DEC | base.UNIT_STRING, { 'dB' })
 local f_haptic_lfo_tone_frequency = ProtoField.uint16('hid_sctrl.haptic_lfo_tone.frequency', 'Frequency', base.DEC | base.UNIT_STRING, { 'Hz' })
+-- not sure what these two do
 local f_haptic_lfo_tone_lfo_freq = ProtoField.uint16('hid_sctrl.haptic_lfo_tone.lfo_freq', 'LFO frequency', base.DEC | base.UNIT_STRING, { 'Hz' })
 local f_haptic_lfo_tone_lfo_depth = ProtoField.uint8('hid_sctrl.haptic_lfo_tone.lfo_depth', 'LFO depth', base.DEC)
 
-local haptic_log_sweep_sides = haptic_command_sides -- guess
+local haptic_log_sweep_sides = haptic_script_sides
 local f_haptic_log_sweep = ProtoField.bytes('hid_sctrl.haptic_log_sweep', 'Haptic log sweep')
 local f_haptic_log_sweep_side = ProtoField.uint8('hid_sctrl.haptic_log_sweep.side', 'Side', base.DEC, haptic_log_sweep_sides)
 local f_haptic_log_sweep_gain = ProtoField.int8('hid_sctrl.haptic_log_sweep.gain', 'Gain', base.DEC | base.UNIT_STRING, { 'dB' })
-local f_haptic_log_sweep_left_freq = ProtoField.uint16('hid_sctrl.haptic_log_sweep.left_freq', 'Left frequency', base.DEC | base.UNIT_STRING, { 'Hz' })
-local f_haptic_log_sweep_right_freq = ProtoField.uint16('hid_sctrl.haptic_log_sweep.right_freq', 'Right frequency', base.DEC | base.UNIT_STRING, { 'Hz' })
+local f_haptic_log_sweep_start_freq = ProtoField.uint16('hid_sctrl.haptic_log_sweep.left_freq', 'Start frequency', base.DEC | base.UNIT_STRING, { 'Hz' })
+local f_haptic_log_sweep_end_freq = ProtoField.uint16('hid_sctrl.haptic_log_sweep.right_freq', 'End frequency', base.DEC | base.UNIT_STRING, { 'Hz' })
 
-local haptic_scripts = {}
-local haptic_script_sides = haptic_command_sides -- guess
+local haptic_scripts = {
+  -- standard "controller on" noise (1-flat3-5)
+  -- why so sad
+  [0x01] = 'CONTROLLER_ON',
+  -- extended "controller on" noise (1-flat3-5-8)
+  [0x02] = 'CONTROLLER_VERY_ON',
+  -- 5-6-5-6
+  [0x03] = 'TRILL_UP',
+  -- 6-5-6-5
+  [0x04] = 'TRILL_DOWN',
+  -- standard "controller off" noise (reversed "controller on" noise)
+  [0x05] = 'CONTROLLER_OFF',
+  -- 1-5
+  [0x06] = 'UP_FIVE',
+  -- 5-1
+  [0x07] = 'DOWN_FIVE',
+  -- 1-4-5-flat6
+  [0x08] = 'UP_SIX',
+  -- 1-flat6-5-4
+  [0x09] = 'DOWN_SIX',
+  -- up-whoop x3
+  [0x0a] = 'WHOOP_UP_3',
+  -- down-whoop x1
+  [0x0b] = 'WHOOP_DOWN',
+  -- sound you get when you hit "Ping" in "Identify Controller"
+  [0x0c] = 'PHONE_RINGING_1',
+  -- what it sounds like when you're ringing someone else's phone
+  [0x0d] = 'RINGBACK_TONE',
+  -- old fashioned ringtone (different from the ping controller sound)
+  [0x0e] = 'PHONE_RINGING_2',
+  -- approximately PHONE_RINGING_2 but higher pitch
+  [0x0f] = 'PHONE_RINGING_3',
+  -- what you're supposed to hear when you drop your controller
+  [0x10] = 'WILHELM_SCREAM',
+}
 local f_haptic_script = ProtoField.bytes('hid_sctrl.haptic_script', 'Haptic script')
 local f_haptic_script_side = ProtoField.uint8('hid_sctrl.haptic_script.side', 'Side', base.DEC, haptic_script_sides)
 local f_haptic_script_id = ProtoField.uint8('hid_sctrl.haptic_script.id', 'Script ID', base.DEC, haptic_scripts)
@@ -252,8 +296,8 @@ local fields_table = {
   f_haptic_log_sweep,
   f_haptic_log_sweep_side,
   f_haptic_log_sweep_gain,
-  f_haptic_log_sweep_left_freq,
-  f_haptic_log_sweep_right_freq,
+  f_haptic_log_sweep_start_freq,
+  f_haptic_log_sweep_end_freq,
 
   f_haptic_script,
   f_haptic_script_side,
@@ -550,9 +594,9 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
     offset = offset + 1
     hapt:add_le(f_haptic_duration, tvb(offset, 2))
     offset = offset + 2
-    hapt:add_le(f_haptic_log_sweep_left_freq, tvb(offset, 2))
+    hapt:add_le(f_haptic_log_sweep_start_freq, tvb(offset, 2))
     offset = offset + 2
-    hapt:add_le(f_haptic_log_sweep_right_freq, tvb(offset, 2))
+    hapt:add_le(f_haptic_log_sweep_end_freq, tvb(offset, 2))
     offset = offset + 2
     pinfo.cols.info = 'Haptic log sweep ' .. haptic_command_sides[side]
   elseif report_id == ID_OUT_REPORT_HAPTIC_SCRIPT then
