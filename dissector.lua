@@ -169,6 +169,7 @@ local haptic_commands = {
   [1] = 'CLICK',
   -- seems to be click but stronger
   [2] = 'CLICK_STRONG',
+  -- verified only 2 values accepted via firmware
 }
 local f_haptic_command = ProtoField.bytes('hid_sctrl.haptic_command', 'Haptic command')
 local f_haptic_command_side = ProtoField.uint8('hid_sctrl.haptic_command.side', 'Side', base.DEC, haptic_command_sides)
@@ -182,6 +183,9 @@ local haptic_script_sides = {
   [3] = 'INT_LEFT',
   [4] = 'INT_RIGHT',
   [5] = 'INT_BOTH',
+  -- firmware handles 6 and 7 the same as 2 and 4, respectively
+  [6] = 'TP_BOTH_ALT',
+  [7] = 'INT_BOTH_ALT',
 }
 local haptic_lfo_tone_sides = haptic_script_sides
 local f_haptic_lfo_tone = ProtoField.bytes('hid_sctrl.haptic_lfo_tone', 'Haptic LFO tone')
