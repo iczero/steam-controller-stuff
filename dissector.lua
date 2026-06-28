@@ -49,7 +49,8 @@ local ID_TRITON_LIZARD_KEYBOARD = 0x41
 -- from SDL: enum ETritonReportIDTypes
 local ID_TRITON_CONTROLLER_STATE = 0x42 -- doesn't seem to be used?
 local ID_TRITON_BATTERY_STATUS = 0x43
--- note: report id 0x44 is reported in HID descriptor
+-- note: report id 0x44 is reported in HID descriptor, might be haptics effect 6 ack
+local ID_TRITON_AUDIO_BUFFER_FEEDBACK = 0x44
 local ID_TRITON_CONTROLLER_STATE_BLE = 0x45
 local ID_TRITON_WIRELESS_STATUS_X = 0x46
 -- note: according to SDL this one is sent with touchpad TS but I haven't actually
@@ -126,6 +127,25 @@ local f_state_imu_accel_z = ProtoField.int16('hid_sctrl.state.imu_accel_z', 'IMU
 local f_state_imu_gyro_x = ProtoField.int16('hid_sctrl.state.imu_gyro_x', 'IMU gyroscope (X-axis)', base.DEC)
 local f_state_imu_gyro_y = ProtoField.int16('hid_sctrl.state.imu_gyro_y', 'IMU gyroscope (Y-axis)', base.DEC)
 local f_state_imu_gyro_z = ProtoField.int16('hid_sctrl.state.imu_gyro_z', 'IMU gyroscope (Z-axis)', base.DEC)
+
+local audio_feedback_actuator_table = {
+  [0] = 'INT_LEFT',
+  [1] = 'INT_RIGHT',
+  [3] = 'TP_LEFT',
+  [4] = 'TP_RIGHT',
+}
+local f_audio_feedback = ProtoField.bytes('hid_sctrl.audio_feedback', 'Audio buffer feedback')
+local f_audio_feedback_actuator = ProtoField.uint8('hid_sctrl.audio_feedback.actuator_id', 'Actuator', base.DEC, audio_feedback_actuator_table)
+local f_audio_feedback_status = ProtoField.uint8('hid_sctrl.audio_feedback.status', 'Status')
+local f_audio_feedback_status_0 = ProtoField.bool('hid_sctrl.audio_feedback.status.b0', 'Buffer overrun', 8, nil, 1 << 0)
+local f_audio_feedback_status_1 = ProtoField.bool('hid_sctrl.audio_feedback.status.b1', 'Buffer underrun', 8, nil, 1 << 1)
+-- this is set once after crossing from enough data to not enough data
+local f_audio_feedback_status_2 = ProtoField.bool('hid_sctrl.audio_feedback.status.b2', 'Buffer needs more data', 8, nil, 1 << 2)
+local f_audio_feedback_status_3 = ProtoField.bool('hid_sctrl.audio_feedback.status.b3', 'Buffer has enough data', 8, nil, 1 << 3)
+local f_audio_feedback_status_4 = ProtoField.bool('hid_sctrl.audio_feedback.status.b4', 'Bit 4', 8, nil, 1 << 4)
+local f_audio_feedback_status_5 = ProtoField.bool('hid_sctrl.audio_feedback.status.b5', 'Bit 5', 8, nil, 1 << 5)
+local f_audio_feedback_status_6 = ProtoField.bool('hid_sctrl.audio_feedback.status.b6', 'Bit 6', 8, nil, 1 << 6)
+local f_audio_feedback_status_7 = ProtoField.bool('hid_sctrl.audio_feedback.status.b7', 'Bit 7', 8, nil, 1 << 7)
 
 local f_haptic_rumble = ProtoField.bytes('hid_sctrl.haptic_rumble', 'Haptic rumble')
 local f_haptic_rumble_type = ProtoField.uint8('hid_sctrl.haptic_rumble.type', 'Type', base.DEC)
@@ -280,6 +300,18 @@ local fields_table = {
   f_state_imu_gyro_x,
   f_state_imu_gyro_y,
   f_state_imu_gyro_z,
+
+  f_audio_feedback,
+  f_audio_feedback_actuator,
+  f_audio_feedback_status,
+  f_audio_feedback_status_0,
+  f_audio_feedback_status_1,
+  f_audio_feedback_status_2,
+  f_audio_feedback_status_3,
+  f_audio_feedback_status_4,
+  f_audio_feedback_status_5,
+  f_audio_feedback_status_6,
+  f_audio_feedback_status_7,
 
   f_haptic_rumble,
   f_haptic_rumble_type,
@@ -624,6 +656,21 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
     hapt:add_le(f_haptic_script_gain, tvb(offset, 1))
     offset = offset + 1
     pinfo.cols.info = string.format('Haptic script %s %s', get_enum_or_dec(haptic_scripts, script_id), haptic_script_sides[side])
+  elseif report_id == ID_TRITON_AUDIO_BUFFER_FEEDBACK then
+    local feedback = tree:add(f_audio_feedback, tvb(offset, 2))
+    local _, actuator = feedback:add_packet_field(f_audio_feedback_actuator, tvb(offset, 1), ENC_LITTLE_ENDIAN)
+    offset = offset + 1
+    local bf = feedback:add(f_audio_feedback_status, tvb(offset, 1))
+    bf:add(f_audio_feedback_status_0, tvb(offset, 1))
+    bf:add(f_audio_feedback_status_1, tvb(offset, 1))
+    bf:add(f_audio_feedback_status_2, tvb(offset, 1))
+    bf:add(f_audio_feedback_status_3, tvb(offset, 1))
+    bf:add(f_audio_feedback_status_4, tvb(offset, 1))
+    bf:add(f_audio_feedback_status_5, tvb(offset, 1))
+    bf:add(f_audio_feedback_status_6, tvb(offset, 1))
+    bf:add(f_audio_feedback_status_7, tvb(offset, 1))
+    offset = offset + 1
+    pinfo.cols.info = string.format('Audio feedback, %s', get_enum_or_dec(audio_feedback_actuator_table, actuator))
   elseif report_id == ID_TRITON_LIZARD_KEYBOARD then
     -- send lizard mode to native dissector
     pinfo.cols.info = 'Lizard mode keyboard'

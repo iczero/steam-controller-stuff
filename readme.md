@@ -34,6 +34,8 @@ Haptics seem to use several report ids in the range `0x81 - 0x89`.
 
 ### Triton firmware
 
+SoC is nRF52833.
+
 - Base address seems to be `0x8000`, entrypoint `0x0267ec` (as in Cortex-M vector table)
 - Entirely Thumb2
 - rodata section starts somewhere around address `0x055000`
@@ -47,7 +49,7 @@ Haptics seem to use several report ids in the range `0x81 - 0x89`.
 - `TP_LEFT` (side 0) is actuator 0
 - `TP_RIGHT` (side 1) is actuator 1
 - `INT_LEFT` (side 3) is actuator 2
-- `INT_LEFT` (side 4) is actuator 3
+- `INT_RIGHT` (side 4) is actuator 3
 
 ```
 report 0x87 first byte:
@@ -59,6 +61,42 @@ report 0x87 first byte:
 5 -> left and right trackpad
 0x80 -> same as 2
 ```
+
+the struct tentatively called `haptic_seq_queue_msg`:
+
+- offset 0x0: operation, 0 = start, 1 = something else, 2 = stop
+- offset 0x1: effect type
+  - command zero(?): 9
+  - command click: 0
+  - command strong click: 1
+  - stream op 1: 6
+  - stream op 2: 2
+  - pulse, on_us == 0: 9
+  - pulse, on_us > 0 and off_us == 0: 0
+  - pulse, on_us > 0 and off_us > 0 and repeat <= 4: 1
+  - pulse, on_us > 0 and off_us > 0 and repeat > 4: 2
+  - script, wilhelm scream: 7
+  - rumble right: 4
+  - rumble left: 3
+  - log sweep: 5
+  - LFO tone: 3
+  - 9 should be stop all
+- offset 0x2+: probably union
+
+gain values seem clamped to the range -23 to 24
+
+report 0x86:
+- byte 0: operation: 1 = cancel effect 6, 2 = setup effect 6
+- byte 1: side
+- byte 2: param for operation 2
+
+report 0x44: seems to be some kind of haptics ack or flow control
+- byte 0: which actuator
+  - INT_LEFT: 0
+  - INT_RIGHT: 1
+  - TP_LEFT: 3
+  - TP_RIGHT: 4
+- byte 1: bitfield
 
 ### Firmware updater
 
