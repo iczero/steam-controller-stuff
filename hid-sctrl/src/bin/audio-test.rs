@@ -85,6 +85,11 @@ fn test_audio(args: TestAudioArgs) -> eyre::Result<ExitCode> {
         let mut buf = [0u8; 65536];
         loop {
             let bytes_read = in_file.read(&mut buf).expect("reading pcm file");
+            if bytes_read == 0 {
+                // g'bye
+                return;
+            }
+
             let read_slice = &buf[..bytes_read];
 
             // TOOD: actually handle partial reads
