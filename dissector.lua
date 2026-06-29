@@ -61,20 +61,20 @@ local ID_TRITON_WIRELESS_STATUS = 0x79
 local ID_TRITON_PUCK_WIRELESS_STATUS = 0x7B
 
 -- from SDL: enum ValveTritonOutReportMessageIDs
-local ID_OUT_REPORT_HAPTIC_RUMBLE = 0x80
-local ID_OUT_REPORT_HAPTIC_PULSE = 0x81
-local ID_OUT_REPORT_HAPTIC_COMMAND = 0x82
-local ID_OUT_REPORT_HAPTIC_LFO_TONE = 0x83
-local ID_OUT_REPORT_HAPTIC_LOG_SWEEP = 0x84
-local ID_OUT_REPORT_HAPTIC_SCRIPT = 0x85
+local ID_OUT_HAPTIC_RUMBLE = 0x80
+local ID_OUT_HAPTIC_PULSE = 0x81
+local ID_OUT_HAPTIC_COMMAND = 0x82
+local ID_OUT_HAPTIC_LFO_TONE = 0x83
+local ID_OUT_HAPTIC_LOG_SWEEP = 0x84
+local ID_OUT_HAPTIC_SCRIPT = 0x85
 -- not from SDL
-local ID_OUT_REPORT_STREAM_CONFIGURE = 0x86
+local ID_OUT_STREAM_CONFIGURE = 0x86
 -- push data for one actuator, full length
-local ID_OUT_REPORT_STREAM_PUSH_DATA_FULL = 0x87
+local ID_OUT_STREAM_PUSH_DATA_FULL = 0x87
 -- push data for INT_LEFT and INT_RIGHT
-local ID_OUT_REPORT_STREAM_PUSH_DATA_INT_2CH = 0x88
+local ID_OUT_STREAM_PUSH_DATA_INT_2CH = 0x88
 -- report 0x87 but with an explicit length byte (when not pushing full length)
-local ID_OUT_REPORT_STREAM_PUSH_DATA_PARTIAL = 0x89
+local ID_OUT_STREAM_PUSH_DATA_PARTIAL = 0x89
 
 local interrupt_report_ids = {
   [ID_TRITON_LIZARD_MOUSE] = 'ID_TRITON_LIZARD_MOUSE',
@@ -87,16 +87,16 @@ local interrupt_report_ids = {
   [ID_TRITON_WIRELESS_STATUS] = 'ID_TRITON_WIRELESS_STATUS',
   [ID_TRITON_PUCK_WIRELESS_STATUS] = 'ID_TRITON_PUCK_WIRELESS_STATUS',
 
-  [ID_OUT_REPORT_HAPTIC_RUMBLE] = 'ID_OUT_REPORT_HAPTIC_RUMBLE',
-  [ID_OUT_REPORT_HAPTIC_PULSE] = 'ID_OUT_REPORT_HAPTIC_PULSE',
-  [ID_OUT_REPORT_HAPTIC_COMMAND] = 'ID_OUT_REPORT_HAPTIC_COMMAND',
-  [ID_OUT_REPORT_HAPTIC_LFO_TONE] = 'ID_OUT_REPORT_HAPTIC_LFO_TONE',
-  [ID_OUT_REPORT_HAPTIC_LOG_SWEEP] = 'ID_OUT_REPORT_HAPTIC_LOG_SWEEP',
-  [ID_OUT_REPORT_HAPTIC_SCRIPT] = 'ID_OUT_REPORT_HAPTIC_SCRIPT',
-  [ID_OUT_REPORT_STREAM_CONFIGURE] = 'ID_OUT_REPORT_STREAM_CONFIGURE',
-  [ID_OUT_REPORT_STREAM_PUSH_DATA_FULL] = 'ID_OUT_REPORT_STREAM_PUSH_DATA_FULL',
-  [ID_OUT_REPORT_STREAM_PUSH_DATA_INT_2CH] = 'ID_OUT_REPORT_STREAM_PUSH_DATA_INT_2CH',
-  [ID_OUT_REPORT_STREAM_PUSH_DATA_PARTIAL] = 'ID_OUT_REPORT_STREAM_PUSH_DATA_PARTIAL',
+  [ID_OUT_HAPTIC_RUMBLE] = 'ID_OUT_HAPTIC_RUMBLE',
+  [ID_OUT_HAPTIC_PULSE] = 'ID_OUT_HAPTIC_PULSE',
+  [ID_OUT_HAPTIC_COMMAND] = 'ID_OUT_HAPTIC_COMMAND',
+  [ID_OUT_HAPTIC_LFO_TONE] = 'ID_OUT_HAPTIC_LFO_TONE',
+  [ID_OUT_HAPTIC_LOG_SWEEP] = 'ID_OUT_HAPTIC_LOG_SWEEP',
+  [ID_OUT_HAPTIC_SCRIPT] = 'ID_OUT_HAPTIC_SCRIPT',
+  [ID_OUT_STREAM_CONFIGURE] = 'ID_OUT_STREAM_CONFIGURE',
+  [ID_OUT_STREAM_PUSH_DATA_FULL] = 'ID_OUT_STREAM_PUSH_DATA_FULL',
+  [ID_OUT_STREAM_PUSH_DATA_INT_2CH] = 'ID_OUT_STREAM_PUSH_DATA_INT_2CH',
+  [ID_OUT_STREAM_PUSH_DATA_PARTIAL] = 'ID_OUT_STREAM_PUSH_DATA_PARTIAL',
 }
 
 local setting_ids = {
@@ -186,6 +186,28 @@ local audio_configure_param_table = {
 }
 local f_audio_configure_param = ProtoField.uint8('hid_sctrl.audio_configure.param', 'Parameters', base.DEC, audio_configure_param_table)
 
+local audio_data_target_table = {
+  [0] = 'INT_LEFT',
+  -- this is missing for some reason (early return), why?
+  -- [1] = 'missing',
+  [2] = 'INT_BOTH',
+  [3] = 'TP_LEFT',
+  [4] = 'INT_RIGHT',
+  [5] = 'TP_BOTH',
+  [0x80] = 'INT_BOTH',
+}
+local f_audio_data_full = ProtoField.bytes('hid_sctrl.audio_data_full', 'Audio data, full length')
+local f_audio_data_target = ProtoField.uint8('hid_sctrl.audio_data.target', 'Target', base.DEC, audio_data_target_table)
+local f_audio_data_data = ProtoField.bytes('hid_sctrl.audio_data', 'Data')
+
+local f_audio_data_2ch = ProtoField.bytes('hid_sctrl.audio_data_2ch', 'Audio data, two-channel INT_BOTH')
+local f_audio_data_2ch_len = ProtoField.uint8('hid_sctrl.audio_data_2ch.length', 'Data length', base.DEC)
+local f_audio_data_2ch_data_left = ProtoField.bytes('hid_sctrl.audio_data_2ch.data_left', 'Left channel data')
+local f_audio_data_2ch_data_right = ProtoField.bytes('hid_sctrl.audio_data_2ch.data_right', 'Right channel data')
+
+local f_audio_data_partial = ProtoField.bytes('hid_sctrl.audio_data_partial', 'Audio data, partial length')
+local f_audio_data_partial_len = ProtoField.uint8('hid_sctrl.audio_data_partial.length', 'Data length', base.DEC)
+
 local f_haptic_rumble = ProtoField.bytes('hid_sctrl.haptic_rumble', 'Haptic rumble')
 local f_haptic_rumble_type = ProtoField.uint8('hid_sctrl.haptic_rumble.type', 'Type', base.DEC)
 local f_haptic_rumble_intensity = ProtoField.uint16('hid_sctrl.haptic_rumble.intensity', 'Intensity', base.DEC)
@@ -224,6 +246,7 @@ local haptic_command_sides = {
 }
 local haptic_commands = {
   -- TODO: better names
+  [0] = 'STOP_ALL_EFFECTS',
   -- trackpad "click" feeling sent when trackpad is configured as mouse
   [1] = 'CLICK',
   -- seems to be click but stronger
@@ -356,6 +379,16 @@ local fields_table = {
   f_audio_configure_operation,
   f_audio_configure_target,
   f_audio_configure_param,
+
+  f_audio_data_full,
+  f_audio_data_target,
+  f_audio_data_data,
+  f_audio_data_2ch,
+  f_audio_data_2ch_len,
+  f_audio_data_2ch_data_left,
+  f_audio_data_2ch_data_right,
+  f_audio_data_partial,
+  f_audio_data_partial_len,
 
   f_haptic_rumble,
   f_haptic_rumble_type,
@@ -628,7 +661,7 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
     ))
 
     pinfo.cols.info = table.concat(info_text, ' ')
-  elseif report_id == ID_OUT_REPORT_HAPTIC_RUMBLE then
+  elseif report_id == ID_OUT_HAPTIC_RUMBLE then
     local hapt = tree:add(f_haptic_rumble, tvb(offset, 9))
     hapt:add_le(f_haptic_rumble_type, tvb(offset, 1))
     offset = offset + 1
@@ -643,7 +676,7 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
     hapt:add_le(f_haptic_rumble_right_gain, tvb(offset, 1))
     offset = offset + 1
     pinfo.cols.info = 'Haptic rumble'
-  elseif report_id == ID_OUT_REPORT_HAPTIC_PULSE then
+  elseif report_id == ID_OUT_HAPTIC_PULSE then
     local hapt = tree:add(f_haptic_pulse, tvb(offset, 7))
     local _, side = hapt:add_packet_field(f_haptic_pulse_side, tvb(offset, 1), ENC_LITTLE_ENDIAN)
     offset = offset + 1
@@ -654,7 +687,7 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
     hapt:add_le(f_haptic_pulse_repeat, tvb(offset, 2))
     offset = offset + 2
     pinfo.cols.info = 'Haptic pulse ' .. haptic_pulse_sides[side]
-  elseif report_id == ID_OUT_REPORT_HAPTIC_COMMAND then
+  elseif report_id == ID_OUT_HAPTIC_COMMAND then
     local hapt = tree:add(f_haptic_command, tvb(offset, 3))
     local _, side = hapt:add_packet_field(f_haptic_command_side, tvb(offset, 1), ENC_LITTLE_ENDIAN)
     offset = offset + 1
@@ -663,7 +696,7 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
     hapt:add_le(f_haptic_command_gain, tvb(offset, 1))
     offset = offset + 1
     pinfo.cols.info = string.format('Haptic command %s %s', get_enum_or_dec(haptic_commands, command), haptic_command_sides[side])
-  elseif report_id == ID_OUT_REPORT_HAPTIC_LFO_TONE then
+  elseif report_id == ID_OUT_HAPTIC_LFO_TONE then
     local hapt = tree:add(f_haptic_lfo_tone, tvb(offset, 9))
     local _, side = hapt:add_packet_field(f_haptic_lfo_tone_side, tvb(offset, 1), ENC_LITTLE_ENDIAN)
     offset = offset + 1
@@ -678,7 +711,7 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
     hapt:add_le(f_haptic_lfo_tone_lfo_depth, tvb(offset, 1))
     offset = offset + 1
     pinfo.cols.info = 'Haptic LFO tone ' .. haptic_command_sides[side]
-  elseif report_id == ID_OUT_REPORT_HAPTIC_LOG_SWEEP then
+  elseif report_id == ID_OUT_HAPTIC_LOG_SWEEP then
     local hapt = tree:add(f_haptic_log_sweep, tvb(offset, 8))
     local _, side = hapt:add_packet_field(f_haptic_log_sweep_side, tvb(offset, 1), ENC_LITTLE_ENDIAN)
     offset = offset + 1
@@ -691,7 +724,7 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
     hapt:add_le(f_haptic_log_sweep_end_freq, tvb(offset, 2))
     offset = offset + 2
     pinfo.cols.info = 'Haptic log sweep ' .. haptic_command_sides[side]
-  elseif report_id == ID_OUT_REPORT_HAPTIC_SCRIPT then
+  elseif report_id == ID_OUT_HAPTIC_SCRIPT then
     local hapt = tree:add(f_haptic_script, tvb(offset, 3))
     local _, side = hapt:add_packet_field(f_haptic_script_side, tvb(offset, 1), ENC_LITTLE_ENDIAN)
     offset = offset + 1
@@ -715,7 +748,7 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
     bf:add(f_audio_feedback_status_8, tvb(offset, 1))
     offset = offset + 1
     pinfo.cols.info = string.format('Audio feedback, %s', get_enum_or_dec(audio_feedback_actuator_table, actuator))
-  elseif report_id == ID_OUT_REPORT_STREAM_CONFIGURE then
+  elseif report_id == ID_OUT_STREAM_CONFIGURE then
     local config = tree:add(f_audio_configure, tvb(offset, 3))
     local _, operation = config:add_packet_field(f_audio_configure_operation, tvb(offset, 1), ENC_LITTLE_ENDIAN)
     offset = offset + 1
@@ -732,6 +765,30 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
     else
       pinfo.cols.info = string.format('Stream stop %s', get_enum_or_dec(audio_configure_target_table, target))
     end
+  elseif report_id == ID_OUT_STREAM_PUSH_DATA_FULL then
+    local data = tree:add(f_audio_data_full, tvb(offset))
+    local _, target = data:add_packet_field(f_audio_data_target, tvb(offset, 1), ENC_LITTLE_ENDIAN)
+    offset = offset + 1
+    data:add_le(f_audio_data_data, tvb(offset))
+    pinfo.cols.info = 'Stream data full ' .. get_enum_or_dec(audio_data_target_table, target)
+  elseif report_id == ID_OUT_STREAM_PUSH_DATA_INT_2CH then
+    local data = tree:add(f_audio_data_2ch, tvb(offset))
+    local _, length = data:add_packet_field(f_audio_data_2ch_len, tvb(offset, 1), ENC_LITTLE_ENDIAN)
+    offset = offset + 1
+    data:add_le(f_audio_data_2ch_data_left, tvb(offset, length))
+    offset = offset + 31
+    data:add_le(f_audio_data_2ch_data_right, tvb(offset, length))
+    offset = offset + 31
+    pinfo.cols.info = 'Stream data 2ch INT_LEFT/INT_RIGHT'
+  elseif report_id == ID_OUT_STREAM_PUSH_DATA_PARTIAL then
+    local data = tree:add(f_audio_data_partial, tvb(offset))
+    local _, length = data:add_packet_field(f_audio_data_partial_len, tvb(offset, 1), ENC_LITTLE_ENDIAN)
+    offset = offset + 1
+    local _, target = data:add_packet_field(f_audio_data_target, tvb(offset, 1), ENC_LITTLE_ENDIAN)
+    offset = offset + 1
+    data:add_le(f_audio_data_data, tvb(offset, length))
+    data:set_len(length + 2)
+    pinfo.cols.info = 'Stream data partial ' .. get_enum_or_dec(audio_data_target_table, target)
   elseif report_id == ID_TRITON_LIZARD_KEYBOARD then
     -- send lizard mode to native dissector
     pinfo.cols.info = 'Lizard mode keyboard'

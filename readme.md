@@ -36,7 +36,7 @@ Haptics seem to use several report ids in the range `0x81 - 0x89`.
 
 SoC is nRF52833.
 
-- Base address seems to be `0x8000`, entrypoint `0x0267ec` (as in Cortex-M vector table)
+- Base address seems to be `0x8000`, entrypoint ~~`0x0267ec`~~ (as in Cortex-M vector table)
 - Entirely Thumb2
 - rodata section starts somewhere around address `0x055000`
 - Output report handler jump table starts at `0x05df7c`
@@ -44,7 +44,7 @@ SoC is nRF52833.
 - Report `0x86` does a "stream op"?
 - Report `0x87` takes a byte of either 0, 2, 3, 4, 5, or 0x80, and then a data buffer
 - Report `0x88` takes a length byte, 31 bytes, and then 31 more bytes
-- Report `0x89` seems identical to report `0x87` except for a byte inserted after the report ID which serves as the length of the data buffer. Not sure why this exists. Could just use `0x87` instead.
+- Report `0x89` seems identical to report `0x87` except for a byte inserted after the report ID which serves as the length of the data buffer. Not sure why this exists. Could just use `0x87` instead. Maybe things assume HID report is always fixed-length?
 
 - `TP_LEFT` (side 0) is actuator 0
 - `TP_RIGHT` (side 1) is actuator 1
