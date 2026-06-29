@@ -4,9 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+async-channel = { workspace = true }
+bitflags = { workspace = true }
+bytemuck = { workspace = true }
+bytes = { workspace = true }
 clap = { workspace = true }
 color-eyre = { workspace = true }
 eyre = { workspace = true }
+ringbuf = { workspace = true }
 rustix = { workspace = true, features = ["linux_latest", "fs", "time", "event", "thread"] }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }

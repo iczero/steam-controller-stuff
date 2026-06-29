@@ -149,7 +149,7 @@ local f_audio_feedback = ProtoField.bytes('hid_sctrl.audio_feedback', 'Audio buf
 local f_audio_feedback_actuator = ProtoField.uint8('hid_sctrl.audio_feedback.actuator_id', 'Actuator', base.DEC, audio_feedback_actuator_table)
 local f_audio_feedback_status = ProtoField.uint8('hid_sctrl.audio_feedback.status', 'Status')
 local f_audio_feedback_status_1 = ProtoField.bool('hid_sctrl.audio_feedback.status.b1', 'Buffer overrun', 8, nil, 1 << 0)
-local f_audio_feedback_status_2 = ProtoField.bool('hid_sctrl.audio_feedback.status.b2', 'Buffer underrun', 8, nil, 1 << 1)
+local f_audio_feedback_status_2 = ProtoField.bool('hid_sctrl.audio_feedback.status.b2', 'Stream stopped potentially due to buffer underrun', 8, nil, 1 << 1)
 -- this is set once after crossing from enough data to not enough data
 local f_audio_feedback_status_3 = ProtoField.bool('hid_sctrl.audio_feedback.status.b3', 'Stream needs more data', 8, nil, 1 << 2)
 local f_audio_feedback_status_4 = ProtoField.bool('hid_sctrl.audio_feedback.status.b4', 'Stream has enough data', 8, nil, 1 << 3)
@@ -159,7 +159,10 @@ local f_audio_feedback_status_7 = ProtoField.bool('hid_sctrl.audio_feedback.stat
 local f_audio_feedback_status_8 = ProtoField.bool('hid_sctrl.audio_feedback.status.b8', 'Bit 8', 8, nil, 1 << 7)
 
 local f_audio_configure = ProtoField.bytes('hid_sctrl.audio_configure', 'Audio stream configuration')
-local audio_configure_op_table = { [1] = 'STOP', [2] = 'CONFIGURE' }
+local audio_configure_op_table = {
+  [1] = 'STOP',
+  [2] = 'CONFIGURE',
+}
 local f_audio_configure_operation = ProtoField.uint8('hid_sctrl.audio_configure.op', 'Operation', base.DEC, audio_configure_op_table)
 local audio_configure_target_table = {
   [0] = 'INT_LEFT',
@@ -749,12 +752,13 @@ local function dissect_interrupt_report_payload(direction, tvb, pinfo, root)
     offset = offset + 1
     pinfo.cols.info = string.format('Audio feedback, %s', get_enum_or_dec(audio_feedback_actuator_table, actuator))
   elseif report_id == ID_OUT_STREAM_CONFIGURE then
-    local config = tree:add(f_audio_configure, tvb(offset, 3))
+    local config = tree:add(f_audio_configure, tvb(offset, 2))
     local _, operation = config:add_packet_field(f_audio_configure_operation, tvb(offset, 1), ENC_LITTLE_ENDIAN)
     offset = offset + 1
     local _, target = config:add_packet_field(f_audio_configure_target, tvb(offset, 1), ENC_LITTLE_ENDIAN)
     offset = offset + 1
     if operation == 2 then
+      config:set_len(3)
       local _, param = config:add_packet_field(f_audio_configure_param, tvb(offset, 1), ENC_LITTLE_ENDIAN)
       offset = offset + 1
       pinfo.cols.info = string.format(
