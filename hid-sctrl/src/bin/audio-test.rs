@@ -78,6 +78,10 @@ fn test_audio(args: TestAudioArgs) -> eyre::Result<ExitCode> {
     let mut in_file = std::fs::File::open(&args.audio_file).wrap_err("opening pcm file")?;
 
     std::thread::spawn(move || {
+        fn transform_sample(sample: i16) -> i16 {
+            (sample as f32 * 0.9) as i16
+        }
+
         let mut buf = [0u8; 65536];
         loop {
             let bytes_read = in_file.read(&mut buf).expect("reading pcm file");
@@ -91,8 +95,11 @@ fn test_audio(args: TestAudioArgs) -> eyre::Result<ExitCode> {
             let mut right_buf = Vec::with_capacity(bytes_read / 2);
 
             for chunk in read_slice.chunks_exact(4) {
-                left_buf.extend(&chunk[0..2]);
-                right_buf.extend(&chunk[2..4]);
+                let left_sample = i16::from_le_bytes(chunk[0..2].try_into().unwrap());
+                let right_sample = i16::from_le_bytes(chunk[2..4].try_into().unwrap());
+
+                left_buf.extend(transform_sample(left_sample).to_le_bytes());
+                right_buf.extend(transform_sample(right_sample).to_le_bytes());
             }
 
             left_send
