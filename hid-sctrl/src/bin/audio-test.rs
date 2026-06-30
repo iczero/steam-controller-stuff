@@ -47,10 +47,11 @@ fn test_audio(args: TestAudioArgs) -> eyre::Result<ExitCode> {
     use rustix::thread::clock_nanosleep_absolute;
     use rustix::time::{ClockId, Timespec, clock_gettime};
 
-    // target tick rate: 1 ms
-    const TICKRATE: Timespec = Timespec {
+    // target tick rate in ms
+    const TICKRATE: u64 = 2;
+    const TICKRATE_TS: Timespec = Timespec {
         tv_sec: 0,
-        tv_nsec: 1_000_000,
+        tv_nsec: (TICKRATE as i64) * 1_000_000,
     };
 
     let mut wake_time = clock_gettime(ClockId::Monotonic);
@@ -67,19 +68,23 @@ fn test_audio(args: TestAudioArgs) -> eyre::Result<ExitCode> {
 
     let mut tick_counter: u64 = 0;
 
-    let (left_send, left_recv) = async_channel::bounded(64);
-    let (right_send, right_recv) = async_channel::bounded(64);
+    let (left_send, left_recv) = async_channel::bounded::<Bytes>(64);
+    let (right_send, right_recv) = async_channel::bounded::<Bytes>(64);
 
+    let bytes_per_sample = 1.;
+    let samples_per_ms = 8.;
+    let baseline_rate: f32 = bytes_per_sample * samples_per_ms;
     let mut streamers = [
-        HapticsStreamer::new(0, left_recv),  // INT_LEFT
-        HapticsStreamer::new(4, right_recv), // INT_RIGHT
+        HapticsStreamer::new(0, left_recv, TICKRATE, baseline_rate), // INT_LEFT
+        HapticsStreamer::new(4, right_recv, TICKRATE, baseline_rate), // INT_RIGHT
+                                                                     // HapticsStreamer::new(2, left_recv, TICKRATE, baseline_rate), // INT_BOTH
     ];
 
     let mut in_file = std::fs::File::open(&args.audio_file).wrap_err("opening pcm file")?;
 
     std::thread::spawn(move || {
-        fn transform_sample(sample: i16) -> i16 {
-            (sample as f32 * 0.9) as i16
+        fn transform_sample(sample: i8) -> i8 {
+            (sample as f32 * 0.9) as i8
         }
 
         let mut buf = [0u8; 65536];
@@ -94,17 +99,17 @@ fn test_audio(args: TestAudioArgs) -> eyre::Result<ExitCode> {
 
             // TOOD: actually handle partial reads
             // heheheh shitcode
-            assert!(bytes_read % 4 == 0, "oops");
+            assert!(bytes_read.is_multiple_of(2), "oops");
 
             let mut left_buf = Vec::with_capacity(bytes_read / 2);
             let mut right_buf = Vec::with_capacity(bytes_read / 2);
 
-            for chunk in read_slice.chunks_exact(4) {
-                let left_sample = i16::from_le_bytes(chunk[0..2].try_into().unwrap());
-                let right_sample = i16::from_le_bytes(chunk[2..4].try_into().unwrap());
+            for chunk in read_slice.chunks_exact(2) {
+                let left_sample = chunk[0] as i8;
+                let right_sample = chunk[1] as i8;
 
-                left_buf.extend(transform_sample(left_sample).to_le_bytes());
-                right_buf.extend(transform_sample(right_sample).to_le_bytes());
+                left_buf.push(transform_sample(left_sample) as u8);
+                right_buf.push(transform_sample(right_sample) as u8);
             }
 
             left_send
@@ -116,13 +121,13 @@ fn test_audio(args: TestAudioArgs) -> eyre::Result<ExitCode> {
         }
     });
 
-    // configure for 8khz s16le pcm, both INT_LEFT and INT_RIGHT
-    hid_set_output_report(&hidraw, &[0x86, 0x02, 0x02, 0x00]).wrap_err("configuring stream")?;
+    // configure for 8khz s8 pcm, both INT_LEFT and INT_RIGHT
+    hid_set_output_report(&hidraw, &[0x86, 0x02, 0x02, 0x04]).wrap_err("configuring stream")?;
 
     // HACK: wait for reader to actually read some data and also for the controller to process
     //       the configuration request.
     //       ideally we'd wait for ack before starting. TODO.
-    std::thread::sleep(Duration::from_millis(100));
+    std::thread::sleep(Duration::from_millis(200));
 
     let mut next_streamer = 0;
 
@@ -131,12 +136,12 @@ fn test_audio(args: TestAudioArgs) -> eyre::Result<ExitCode> {
         let error = loop_start
             .checked_sub(wake_time)
             .expect("time travel is forbidden");
-        if error > TICKRATE {
+        if error > TICKRATE_TS {
             // joever
             warn!("ran out of time, resetting! {error:?} behind");
             wake_time = clock_gettime(ClockId::Monotonic);
         }
-        wake_time += TICKRATE;
+        wake_time += TICKRATE_TS;
 
         'handle_report: {
             let Some(in_report) =
@@ -163,30 +168,28 @@ fn test_audio(args: TestAudioArgs) -> eyre::Result<ExitCode> {
                     match target {
                         0 => streamers[0].handle_status(status),
                         1 => streamers[1].handle_status(status),
-                        n => warn!("ignoring unknown target {n}"),
+                        n => debug!("ignoring unknown target {n}"),
                     }
                 }
                 id => trace!("ignoring unhandled input report 0x{id:x}"),
             }
         }
 
-        // HACK: need to slow start or you'll get an overrun before anything even starts playing.
-        //       i think this is because stream start is triggered by there being enough data in
-        //       the buffer, but the stream itself takes some time to start. by the time the stream
-        //       actually starts, you'd have overrun the buffer already.
-        if tick_counter > 64 || tick_counter.is_multiple_of(3) {
-            // TODO: less shit code?
-            for _ in 0..streamers.len() {
-                let len = streamers[next_streamer].poll_send(&mut out_buf);
-                if len > 0 {
-                    debug!("sending buffer for {}", streamers[next_streamer].id);
-                    hid_set_output_report(&hidraw, &out_buf[..len])
-                        .wrap_err("writing output report")?;
-                }
-                next_streamer = (next_streamer + 1) % streamers.len();
-                if len > 0 {
-                    break;
-                }
+        for s in &mut streamers {
+            s.tick();
+        }
+
+        // TODO: less shit code?
+        for _ in 0..streamers.len() {
+            let len = streamers[next_streamer].poll_send(&mut out_buf);
+            if len > 0 {
+                debug!("sending buffer for {}", streamers[next_streamer].id);
+                hid_set_output_report(&hidraw, &out_buf[..len])
+                    .wrap_err("writing output report")?;
+            }
+            next_streamer = (next_streamer + 1) % streamers.len();
+            if len > 0 {
+                break;
             }
         }
 
@@ -202,7 +205,7 @@ fn test_audio(args: TestAudioArgs) -> eyre::Result<ExitCode> {
             } else {
                 debug!("tick: {tick_counter}");
             }
-            tick_counter += 1;
+            tick_counter += TICKRATE;
         }
 
         while let Err(err) = clock_nanosleep_absolute(ClockId::Monotonic, &wake_time) {
