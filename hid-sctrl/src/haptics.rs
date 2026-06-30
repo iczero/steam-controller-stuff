@@ -1,5 +1,3 @@
-use std::f32::consts::E;
-
 use bytes::{BufMut, Bytes};
 use tracing::{debug, error, info, warn};
 
@@ -27,14 +25,12 @@ pub struct HapticsStreamer {
     /// milliseconds per tick
     pub tickrate: u64,
     /// expected audio rate in bytes per millisecond
-    pub baseline_rate: f32,
-    pub smoothing_factor: f32,
-    /// current EMA refill rate in bytes per millisecond
-    pub ema_current: f32,
-    pub initial_bucket: f32,
+    pub baseline_rate: isize,
 
     // THIS IS A BUCKET
-    pub bucket: f32,
+    pub bucket: isize,
+    // pub initial_bucket: isize,
+    pub is_low: bool,
 }
 
 impl HapticsStreamer {
@@ -42,12 +38,9 @@ impl HapticsStreamer {
         id: u8,
         recv: async_channel::Receiver<Bytes>,
         tickrate: u64,
-        baseline_rate: f32,
+        baseline_rate: isize,
     ) -> Self {
-        const TIME_CONSTANT: f32 = 10.;
-        let initial_bucket: f32 = baseline_rate * 8.;
-
-        let smoothing_factor: f32 = 1. - E.powf(tickrate as f32 / -TIME_CONSTANT);
+        // let initial_bucket: isize = baseline_rate * 8;
 
         Self {
             id,
@@ -57,30 +50,30 @@ impl HapticsStreamer {
 
             tickrate,
             baseline_rate,
-            smoothing_factor,
-            ema_current: baseline_rate,
 
-            initial_bucket,
-            bucket: initial_bucket,
+            // initial_bucket,
+            bucket: 0,
+            is_low: true,
         }
     }
 
     pub fn handle_status(&mut self, status: StreamStatus) {
         if status.contains(StreamStatus::BUFFER_OVERRUN) {
             warn!("buffer overrun reported");
-            self.ema_current = 0.;
+            self.bucket -= self.baseline_rate * 4;
         }
         if status.contains(StreamStatus::STREAM_STOPPED) {
             error!("stream stop reported");
-            self.ema_current = self.initial_bucket;
+            // self.bucket += self.initial_bucket;
+            self.is_low = true;
         }
         if status.contains(StreamStatus::NEEDS_MORE_DATA) {
             info!("received buffer low");
-            self.ema_current += self.baseline_rate * 3.;
+            self.is_low = true;
         }
         if status.contains(StreamStatus::HAS_ENOUGH_DATA) {
             info!("received buffer high");
-            self.ema_current -= self.baseline_rate * 0.1;
+            self.is_low = false;
         }
         if status.contains(StreamStatus::CONFIG_REJECTED_INVALID) {
             error!("controller rejects stream configuration: invalid");
@@ -136,13 +129,14 @@ impl HapticsStreamer {
             return;
         }
 
-        self.ema_current = self.smoothing_factor * self.ema_current
-            + (1. - self.smoothing_factor) * self.baseline_rate;
-        self.bucket += f32::max(self.ema_current * (self.tickrate as f32), 0.);
-        debug!(
-            "current EMA rate is {:.2}, bucket is {:.2}",
-            self.ema_current, self.bucket
-        );
+        let increment = self.baseline_rate * (self.tickrate as isize);
+        self.bucket += increment;
+        if self.is_low {
+            self.bucket += increment / 8;
+        } else {
+            self.bucket -= increment / 8;
+        }
+        debug!("bucket is {}", self.bucket);
     }
 
     pub fn poll_send(&mut self, buf: &mut [u8]) -> usize {
@@ -154,7 +148,7 @@ impl HapticsStreamer {
         }
 
         let send_len = buf.len() - 2;
-        if self.bucket < (send_len as f32) {
+        if (self.bucket.max(0) as usize) < send_len {
             // bucket not full enough
             return 0;
         }
@@ -167,7 +161,7 @@ impl HapticsStreamer {
             return 0;
         }
 
-        self.bucket -= len as f32;
+        self.bucket -= len as isize;
 
         len + 2
     }

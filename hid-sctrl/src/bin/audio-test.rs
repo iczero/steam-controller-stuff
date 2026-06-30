@@ -71,9 +71,9 @@ fn test_audio(args: TestAudioArgs) -> eyre::Result<ExitCode> {
     let (left_send, left_recv) = async_channel::bounded::<Bytes>(64);
     let (right_send, right_recv) = async_channel::bounded::<Bytes>(64);
 
-    let bytes_per_sample = 1.;
-    let samples_per_ms = 8.;
-    let baseline_rate: f32 = bytes_per_sample * samples_per_ms;
+    let bytes_per_sample = 1;
+    let samples_per_ms = 8;
+    let baseline_rate = bytes_per_sample * samples_per_ms;
     let mut streamers = [
         HapticsStreamer::new(0, left_recv, TICKRATE, baseline_rate), // INT_LEFT
         HapticsStreamer::new(4, right_recv, TICKRATE, baseline_rate), // INT_RIGHT
